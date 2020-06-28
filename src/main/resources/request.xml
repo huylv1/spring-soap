@@ -1,0 +1,7 @@
+<Envelope xmlns="http://schemas.xmlsoap.org/soap/envelope/">
+    <Body>
+        <GetStudentDetailsRequest xmlns="http://example.com/gssoapservice">
+            <id>1</id>
+        </GetStudentDetailsRequest>
+    </Body>
+</Envelope>
