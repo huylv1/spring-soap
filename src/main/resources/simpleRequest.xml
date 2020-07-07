@@ -1,0 +1,8 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:gss="http://example.com/gssoapservice">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <gss:GetStudentDetailsRequest>
+            <gss:id>1</gss:id>
+        </gss:GetStudentDetailsRequest>
+    </soapenv:Body>
+</soapenv:Envelope>

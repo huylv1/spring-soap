@@ -1,37 +1,32 @@
 package com.example.gssoapservice;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.dao.DataAccessException;
-import org.springframework.security.core.userdetails.UserCache;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.core.userdetails.cache.NullUserCache;
 import org.springframework.ws.config.annotation.EnableWs;
 import org.springframework.ws.config.annotation.WsConfigurerAdapter;
 import org.springframework.ws.server.EndpointInterceptor;
 import org.springframework.ws.server.endpoint.interceptor.PayloadLoggingInterceptor;
-import org.springframework.ws.soap.security.wss4j2.Wss4jSecurityInterceptor;
-import org.springframework.ws.soap.security.wss4j2.callback.SpringSecurityPasswordValidationCallbackHandler;
+import org.springframework.ws.soap.security.support.KeyStoreFactoryBean;
+import org.springframework.ws.soap.security.x509.X509AuthenticationProvider;
+import org.springframework.ws.soap.security.x509.populator.DaoX509AuthoritiesPopulator;
 import org.springframework.ws.soap.security.xwss.XwsSecurityInterceptor;
-import org.springframework.ws.soap.security.xwss.callback.SimplePasswordValidationCallbackHandler;
-import org.springframework.ws.soap.security.xwss.callback.SpringDigestPasswordValidationCallbackHandler;
+import org.springframework.ws.soap.security.xwss.callback.KeyStoreCallbackHandler;
+import org.springframework.ws.soap.security.xwss.callback.SpringCertificateValidationCallbackHandler;
 import org.springframework.ws.soap.server.endpoint.interceptor.PayloadValidatingInterceptor;
 import org.springframework.ws.transport.http.MessageDispatcherServlet;
 import org.springframework.ws.wsdl.wsdl11.DefaultWsdl11Definition;
 import org.springframework.xml.xsd.SimpleXsdSchema;
 import org.springframework.xml.xsd.XsdSchema;
 
-import java.util.Collections;
+import javax.security.auth.callback.CallbackHandler;
+import java.security.KeyStore;
 import java.util.List;
-import java.util.Set;
 
 @EnableWs
 @Configuration
@@ -87,7 +82,7 @@ public class WebServiceConfig extends WsConfigurerAdapter {
 //        securityInterceptor.setPolicyConfiguration(new ClassPathResource("securityPolicy.xml"));
 //        return securityInterceptor;
 //    }
-
+//
 //    @Bean
 //    SimplePasswordValidationCallbackHandler callbackHandler() {
 //        SimplePasswordValidationCallbackHandler callbackHandler = new SimplePasswordValidationCallbackHandler();
@@ -118,25 +113,100 @@ public class WebServiceConfig extends WsConfigurerAdapter {
 //    ###############################################################################
 //    #                  INTERCEPTOR - DIGESTED PASSWORD - XWSS                     #
 //    ###############################################################################
+//    @Bean
+//    XwsSecurityInterceptor securityInterceptor() {
+//        XwsSecurityInterceptor securityInterceptor = new XwsSecurityInterceptor();
+//        securityInterceptor.setCallbackHandler(callbackHandler());
+//        securityInterceptor.setPolicyConfiguration(new ClassPathResource("securityDigestPolicy.xml"));
+//        return securityInterceptor;
+//    }
+//
+//    @Bean
+//    SpringDigestPasswordValidationCallbackHandler callbackHandler() {
+//        SpringDigestPasswordValidationCallbackHandler callbackHandler = new SpringDigestPasswordValidationCallbackHandler();
+//        callbackHandler.setUserDetailsService(userDetailsService);
+//        return callbackHandler;
+//    }
+
+//    ###############################################################################
+//    #                 INTERCEPTOR - DIGESTED PASSWORD - WSS4J                     #
+//    ###############################################################################
+
+//    @Bean
+//    Wss4jSecurityInterceptor securityInterceptor() {
+//        Wss4jSecurityInterceptor securityInterceptor = new Wss4jSecurityInterceptor();
+//        securityInterceptor.setValidationCallbackHandler(callbackHandler());
+//        securityInterceptor.setValidationActions("UsernameToken");
+//        return securityInterceptor;
+//    }
+//
+//    @Bean
+//    SpringSecurityPasswordValidationCallbackHandler callbackHandler() {
+//        SpringSecurityPasswordValidationCallbackHandler callbackHandler = new SpringSecurityPasswordValidationCallbackHandler();
+//        callbackHandler.setUserDetailsService(userDetailsService);
+//        return callbackHandler;
+//    }
+
+//    ###############################################################################
+//    #                 INTERCEPTOR - Certificate Authentication                    #
+//    ###############################################################################
     @Bean
     XwsSecurityInterceptor securityInterceptor() {
         XwsSecurityInterceptor securityInterceptor = new XwsSecurityInterceptor();
-        securityInterceptor.setCallbackHandler(callbackHandler());
-        securityInterceptor.setPolicyConfiguration(new ClassPathResource("securityDigestPolicy.xml"));
+        //Security Policy -> securityPolicy.xml
+        securityInterceptor.setPolicyConfiguration(new ClassPathResource("securityPolicyX509.xml"));
+        securityInterceptor.setCallbackHandlers(new CallbackHandler[]{
+                keyStoreHandler(),
+                certificateHandler()
+        });
         return securityInterceptor;
     }
 
+    public KeyStoreCallbackHandler keyStoreHandler() {
+        KeyStoreCallbackHandler keyStoreHandler = new KeyStoreCallbackHandler();
+        keyStoreHandler.setKeyStore(keystore().getObject());
+        keyStoreHandler.setPrivateKeyPassword("123456");
+        keyStoreHandler.setDefaultAlias("mycert");
+
+        return keyStoreHandler;
+    }
+
     @Bean
-    SpringDigestPasswordValidationCallbackHandler callbackHandler() {
-        SpringDigestPasswordValidationCallbackHandler callbackHandler = new SpringDigestPasswordValidationCallbackHandler();
-        callbackHandler.setUserDetailsService(userDetailsService);
+    KeyStoreFactoryBean keystore() {
+        KeyStoreFactoryBean bean = new KeyStoreFactoryBean();
+        bean.setLocation(new ClassPathResource("keystore/server.keystore"));
+        bean.setPassword("123456");
+        return bean;
+    }
+
+    @Bean
+    SpringCertificateValidationCallbackHandler certificateHandler() {
+        SpringCertificateValidationCallbackHandler callbackHandler = new SpringCertificateValidationCallbackHandler();
+        callbackHandler.setAuthenticationManager(authenticationManager());
         return callbackHandler;
+    }
+
+    @Bean
+    ProviderManager authenticationManager() {
+        return new ProviderManager(authenticationProvider());
+    }
+
+    @Bean
+    DaoX509AuthoritiesPopulator authPopulator() {
+        DaoX509AuthoritiesPopulator authPopulator = new DaoX509AuthoritiesPopulator();
+        authPopulator.setUserDetailsService(userDetailsService);
+        return authPopulator;
+    }
+
+    @Bean
+    X509AuthenticationProvider authenticationProvider() {
+        X509AuthenticationProvider authenticationProvider = new X509AuthenticationProvider();
+        authenticationProvider.setX509AuthoritiesPopulator(authPopulator());
+        return authenticationProvider;
     }
 
     @Autowired
     private UserDetailsService userDetailsService;
-
-
 
     @Override
     public void addInterceptors(List<EndpointInterceptor> interceptors) {
